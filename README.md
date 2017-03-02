@@ -1,2 +1,3 @@
 # helloword
-this is my first test project!
+this is my first test project;
+readme has corrected;
