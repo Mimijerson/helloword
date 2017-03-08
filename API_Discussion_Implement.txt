@@ -1,0 +1,267 @@
+注意：
+================================================================================
+a. 查询类API尽量都有304机制
+b. 尽量带上用户机型、操作系统等元数据信息，例如http header带上下列数据：
+  userID
+  token
+  User-Agent: (tr-android, tr-ios, ... 系统自动生成)
+  os: android19, ios7,1, ...
+  app_version: 1.0.0	             //app version
+  hardware: xiao_mi, iPhone, ...	 //phone type
+c. 需要传密码的地方用https，其它地方可考虑用http
+
+
+用户
+================================================================================
+a. 注册登录返回的User对象里包含该用户是否为第一次登陆的信息
+b. 用户（返回DB_Model_Server.mwb中tbl_user定义的相关数据，DB_Model_Server.mwb文件可用MySQLWorkbench打开，可以看到每一字段的数据类型和部分字段的缺省值）
+c. 注册登录返回的User对象里包含该用户的设置信息
+
+1. 普通注册
+url:/user/register	POST
+request:{"userName": "zhangsan", "email": "aaa@aa.aaa", "passwd": "1234567"}
+response:	result:user
+
+2. 普通登录
+url:/user/login	POST
+request:{name: "", passwd: ""}
+response:	result:user
+
+3. 第三方注册登录
+url:/user/login/{type}	POST
+request:{"token": "123456", "userID": "1"}
+response:	result:user
+
+4. 退出
+url:/user/logout	PUT
+request:
+response:result:200
+
+5. 忘记密码
+url:/user/passwd/forget	POST
+request:email
+response:result:200/404
+
+6. 修改密码
+url:/user/passwd/update	UPDATE
+request:{"originalPwd": "123456", "newPwd": "1234567", "reNewPwd": "1234567"}	(header) userID	token
+response:result:200/406
+注意：通过网页修改密码不成功（网页可能出问题了）
+
+7. 修改用户信息（头像等）
+  i.
+    url:/user/update/text	POST
+    request:{"name": "zhangsan", "description": "1234567"}
+    response:result:200/406
+  ii.
+    url:/user/update/image	POST
+    request:file	avaterUrl & bgImgUrl
+    response:result:200
+  iii.
+    需要实现修改用户设置的相关接口，例如：/user/update/settings
+
+
+频道
+================================================================================
+a. 可以重名，尽量在客户端各界面体现出频道的拥有者
+
+1. 获取推荐频道（与用户有关，不推荐用户已关注的频道）
+url:/channel/recommendation	GET
+request:
+response:	result->user_channels
+
+2. 用户搜索频道（搜索结果应同时给出用户是否已关注该频道，按关注数排序）
+url:/channel/search	GET
+request:content
+response:	result->user_channels
+
+3. 获取用户的公共频道列表（包括coediting频道，按时间排序，先出现最新的）
+url:/channel/personal/public	GET
+request:
+response:	result->user_channels
+
+4. 获取用户的私人频道列表（按时间排序，先出现最新的）
+url:/channel/personal/private	GET
+request:
+response:	result->user_channels
+
+5. 用户新建频道（成功后，返回该频道的信息如id，图片，标题等，至少要返回id）
+url:/channel/add	POST
+request:channel
+response:	result:200/406
+
+6. 用户删除频道（服务器端体现为软删除：孤儿频道、关注还在、无来自于、体现出无人维护状态，客户端体现为硬删除）
+url:/channel/{setctionID}/delete	DELETE
+request:
+response:	result:200
+
+7. 用户编辑频道标题等
+url:/channel/{setctionID}/update	UPDATE
+request:channel
+response:	result:200/406
+
+
+用户_频道
+================================================================================
+a. 取消用户的coediting及following标记后，并不从用户_频道表中删除该记录，只是关系不存在了
+
+1. 用户关注频道（一次可以单个或多个）
+url:/channel/follow	POST
+request:channelIDs
+response:	result:200/404
+
+2. 用户取消关注频道
+url:/channel/unfollow	DELETE
+request:channelIDs
+response:	result:200/404
+
+3. 获取用户订阅的频道列表（分页）
+url:/channel/following/list	GET
+request:
+response:	result:user_channels
+
+
+搜索
+================================================================================
+1. 获取热门搜索频道列表（隔周期运算）
+url:/hot_search/list	GET
+request:
+response:	result:hotSearch
+
+2. 用户搜索（搜索操作写入搜索表）
+本操作在搜索频道中调用，不会暴露api
+
+
+标签
+================================================================================
+a. 给定数个官方标签，每个人可以新建标签，新建的标签可以重名，用户新建的标签其它用户及自己都看不到，搜索界面也看不到
+
+1. 获取标签列表（界面列举官方标签）
+url:/tag/list	GET
+request:
+response:	result:tags
+
+2. 获取某一标签包含的频道列表
+url:/channel/list	GET
+request:tag
+response:	channel_users
+
+
+文章
+================================================================================
+a. 在model中已添加了文章的type字段，需要在请求中返回
+
+1. 根据文章id获取文章内容（获取文章列表时就预先获取各文章详情？NO）
+
+2. 用户分享文章（记录这个操作，v2: 分享给应用内的其他用户）
+url:/article/{articleID}/share	POST
+request:type(平台类型)
+response:	result:200
+
+3. 上传url生成文章（临时表暂存，创建时间很重要）
+url:/article/add	POST
+request:type url channelID
+response:	result:200/406
+
+
+用户_文章
+================================================================================
+1. 用户点赞文章	????????（一次可以单个或多个）?????????????
+url:/article/follow	POST
+request:channelID articleIDs
+response:	result:200
+
+2. 用户收藏文章（暂时不需要实现）
+url:/article/collect	POST
+request:(body)channelID articleIDs
+response:	result:200
+
+3. 用户阅读文章（这个动作）
+url:/article/{articleID}/read	UPDATE
+request:channelID articleIDs
+response:	result:200
+
+4. 根据用户id获取其关注的频道的所有文章流
+  i. 带上用户关注的频道号（可选）
+  ii. 按更新时间排序；需要分页；返回的文章列表包含是否已读、已赞等信息；需要去重
+url:/article/feed	GET
+request:
+response:	result:article_users
+
+5. 用户的阅读历史
+url:/article/read/list	GET
+request:
+response:	result:article_users
+
+6. 用户收藏的文章（暂时不需要实现）
+url:/article/collect/list	GET
+request:
+response:	result:article_users
+
+7. 用户喜欢的文章
+url:/article/favorite/list	GET
+request:
+response:	result:article_users
+
+8. 用户反馈文章去广告是否有问题
+url:/article/feedback	POST
+request:
+response:	result:200
+
+
+用户_频道_文章
+================================================================================
+1. 根据频道id获取所有文章列表
+url:/article/list	GET
+request:channelID
+response:	result:article_users
+
+2. 从频道中删除文章（人和文章的关系，例如点赞等，需要处理吗？）
+url:/article/{articleID}/delete	DELETE
+request:channelID
+response:	result:200
+
+3. 用户添加现有文章到频道
+  i. 如果为重复添加，updated_time修改到最后一次添加的时间
+  ii. 可以一次将一篇文章加入多个频道
+url:/article/{articleID}/add	POST
+request:channelID
+response:	result:200
+
+
+字典
+================================================================================
+1. 用户查询某个单词或短语（点击或再点击不用请求网络，所以这个API暂时不需要）
+2. 记录用户在某一篇文章的某一个单词或短语所选择某一项解释
+url:/word_article/translation/select	POST
+request:wordID articleID start end transition
+response:	result:200
+
+3. 记录用户在某一篇文章的某一个单词或短语所提供的新的个人解释
+url:/word_article/translation/edit	POST
+request:wordID articleID start end transition
+response:	result:200
+
+
+用户_字典_文章
+================================================================================
+1. 获取用户的生词本
+url:/word/new_words/list	GET
+request:
+response:result:user_article_words
+
+2. 添加生词本条目（每次添加条目带上例句，可选）
+url:/word/new_words/add	POST
+request:articleID wordID
+response:result:200
+
+3. 删除生词本条目
+url:/word/new_words/delete	DELETE
+request:articleID wordID
+response:result:200
+
+
+v2
+================================================================================
+v2: 推荐文章列表
+v2: 用户中心
